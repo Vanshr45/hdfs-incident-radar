@@ -139,4 +139,4 @@ The HDFS_v1 dataset is provided by [Loghub](https://github.com/logpai/loghub). T
 
 ## Author
 
-Abhinav Singla · [GitHub](https://github.com/Vanshr45) · [LinkedIn](https://www.linkedin.com/in/abhinav-singla-866k)
+Vansh Rana · [GitHub](https://github.com/Vanshr45)
