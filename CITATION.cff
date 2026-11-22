@@ -4,8 +4,8 @@ title: "HDFS Incident Radar"
 version: 0.1.0
 date-released: 2026-11-22
 authors:
-  - family-names: Singla
-    given-names: Abhinav
+  - family-names: Rana
+    given-names: Vansh
 repository-code: "https://github.com/Vanshr45/hdfs-incident-radar"
 license: MIT
 references:
