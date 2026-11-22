@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this project, please cite it as below."
+title: "HDFS Incident Radar"
+version: 0.1.0
+date-released: 2026-11-22
+authors:
+  - family-names: Singla
+    given-names: Abhinav
+repository-code: "https://github.com/Vanshr45/hdfs-incident-radar"
+license: MIT
+references:
+  - type: article
+    authors:
+      - family-names: Zhu
+        given-names: Jiawei
+      - family-names: He
+        given-names: Shilin
+      - family-names: He
+        given-names: Pinjia
+      - family-names: Liu
+        given-names: Jieming
+      - family-names: Lyu
+        given-names: Michael R.
+    title: "Loghub: A Large Collection of System Log Datasets for AI-driven Log Analytics"
+    year: 2023
+    conference: "IEEE International Symposium on Software Reliability Engineering"
