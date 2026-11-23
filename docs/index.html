@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+  <meta charset="utf-8">
+  <noscript><style>.loading main { visibility: visible; }</style></noscript>
+  <script>
+    // Apply a saved theme before the first paint, so dark mode never flashes light.
+    try {
+      var savedTheme = localStorage.getItem('radar-theme');
+      if (savedTheme === 'dark' || savedTheme === 'light') document.documentElement.setAttribute('data-theme', savedTheme);
+    } catch (error) { /* storage blocked: follow the system setting */ }
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HDFS Incident Radar: finding broken blocks in a storage log</title>
+  <meta name="description" content="A student predictive-analytics project: telling healthy Hadoop storage blocks from broken ones using only counts of their log events, with every chart drawn from the saved results.">
+  <meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#161614" media="(prefers-color-scheme: dark)">
+  <meta property="og:title" content="HDFS Incident Radar: finding broken blocks in a storage log">
+  <meta property="og:description" content="How I taught a model to read the log diaries of Hadoop storage blocks, and the six blocks it still gets wrong.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="assets/social_preview.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/theme.js" defer></script>
+  <script src="js/data.js" defer></script>
+  <script src="js/charts/base.js" defer></script>
+  <script src="js/masthead.js" defer></script>
+  <script src="js/charts/pipeline.js" defer></script>
+  <script src="js/haystack.js" defer></script>
+  <script src="js/charts/correlation.js" defer></script>
+  <script src="js/diary.js" defer></script>
+  <script src="js/charts/barcode.js" defer></script>
+  <script src="js/detective.js" defer></script>
+  <script src="js/trap.js" defer></script>
+  <script src="js/dial.js" defer></script>
+  <script src="js/charts/scorehist.js" defer></script>
+  <script src="js/charts/costcurve.js" defer></script>
+  <script src="js/models.js" defer></script>
+  <script src="js/charts/roc.js" defer></script>
+  <script src="js/charts/pr.js" defer></script>
+  <script src="js/charts/confusion.js" defer></script>
+  <script src="js/charts/depth.js" defer></script>
+  <script src="js/mistakes.js" defer></script>
+  <script src="js/charts/importance.js" defer></script>
+  <script src="js/charts/pca.js" defer></script>
+  <script src="js/charts/kmeans.js" defer></script>
+  <script src="js/rules.js" defer></script>
+  <script src="js/figures.js" defer></script>
+  <script src="js/nav.js" defer></script>
+  <script src="js/countup.js" defer></script>
+  <script src="js/main.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to the story</a>
+
+<nav class="rail" aria-label="Sections">
+  <ol>
+    <li><a href="#haystack"><span class="rail-no">01</span>Haystack</a></li>
+    <li><a href="#diary"><span class="rail-no">02</span>Diaries</a></li>
+    <li><a href="#detective"><span class="rail-no">03</span>Your turn</a></li>
+    <li><a href="#trap"><span class="rail-no">04</span>The trap</a></li>
+    <li><a href="#dial"><span class="rail-no">05</span>The alarm</a></li>
+    <li><a href="#models"><span class="rail-no">06</span>Ten models</a></li>
+    <li><a href="#mistakes"><span class="rail-no">07</span>Mistakes</a></li>
+    <li><a href="#looks"><span class="rail-no">08</span>What it reads</a></li>
+    <li><a href="#clusters"><span class="rail-no">09</span>Clusters</a></li>
+    <li><a href="#rules"><span class="rail-no">10</span>Tree rules</a></li>
+    <li><a href="#notebooks"><span class="rail-no">11</span>Notebooks</a></li>
+    <li><a href="#limits"><span class="rail-no">12</span>Limits</a></li>
+    <li><a href="#method"><span class="rail-no">13</span>Method</a></li>
+  </ol>
+</nav>
+
+<main id="main">
+
+  <!-- Masthead -->
+  <header class="masthead wrap" id="top">
+    <div class="masthead-bar">
+      <p class="kicker">HDFS Incident Radar · a predictive analytics project · CA2</p>
+      <button class="button button-quiet theme-toggle" type="button" id="theme-toggle"><span class="theme-mark" aria-hidden="true"></span><span class="theme-label">Dark mode</span></button>
+    </div>
+    <h1 id="headline"><span data-fact="anomalous_blocks"></span> of <span data-fact="total_blocks"></span> storage blocks went wrong. Could a computer find them?</h1>
+    <p class="standfirst">In <span data-fact="log_year"></span>, a Hadoop cluster of <span data-fact="machines"></span> machines wrote <span data-fact="log_lines"></span> log lines in <span data-fact="log_hours" data-format="decimal1"></span> hours. Every file it stored was cut into blocks, and every block left a trail of lines about what happened to it. I treated each trail as a diary, counted what was in it, and trained models to tell healthy diaries from broken ones. This page is what I found&#8202;—&#8202;including the <span data-fact="mistakes" data-format="word"></span> blocks my best model still gets wrong.</p>
+    <p class="byline">By Vansh Rana · every number on this page is read from files my notebooks saved</p>
+    <noscript><p class="load-error">The charts and numbers on this page are drawn by JavaScript from small data files. Please turn JavaScript on to see them.</p></noscript>
+    <p class="load-error" id="load-error" hidden></p>
+
+    <figure class="chart pipeline" id="chart-pipeline">
+      <figcaption>
+        <p class="chart-title">One real block, from log lines to alarm</p>
+        <p class="chart-how">The test block <span data-chart-fact="pipeline_id"></span>, exactly as it appears in HDFS.log. Its lines are grouped by block id, counted per event type, scored by the random forest and compared with my cut-off.</p>
+      </figcaption>
+      <div class="chart-body" style="--h: 560px"></div>
+      <p class="sr-only chart-alt"></p>
+      <p class="note chart-note" id="pipeline-note"></p>
+    </figure>
+  </header>
+
+  <!-- 01 Haystack -->
+  <section class="section" id="haystack" aria-labelledby="haystack-title">
+    <div class="wrap">
+      <p class="section-no">01</p>
+      <h2 id="haystack-title">The haystack</h2>
+    </div>
+    <div class="scrolly">
+      <figure class="scrolly-graphic">
+        <svg class="haystack-svg" id="haystack-svg" viewBox="0 0 400 250" role="img" aria-labelledby="haystack-alt"></svg>
+        <figcaption class="legend" aria-hidden="true">
+          <span><span class="swatch swatch-healthy"></span>healthy</span>
+          <span><span class="swatch swatch-broken"></span>broken</span>
+          <span>1 square ≈ <span data-fact="blocks_per_square"></span> blocks</span>
+        </figcaption>
+        <p class="sr-only" id="haystack-alt" aria-live="polite"></p>
+      </figure>
+      <div class="scrolly-steps">
+        <div class="step" data-step="0">
+          <p>Hadoop splits files into blocks and keeps copies of each one on different machines. The cluster in my dataset handled <span data-fact="total_blocks"></span> blocks in <span data-fact="log_hours" data-format="decimal1"></span> hours.</p>
+          <p>Each square here is about <span data-fact="blocks_per_square"></span> of them.</p>
+        </div>
+        <div class="step" data-step="1">
+          <p>The dataset’s authors ran hand-written rules over the log and labelled <span data-fact="anomalous_blocks" class="broken-text"></span> blocks as broken. That is about 1 in <span data-fact="one_in"></span>.</p>
+          <p>Gathered along the top, they fill <span data-fact="broken_squares"></span> of the <span data-fact="grid_squares"></span> squares.</p>
+        </div>
+        <div class="step" data-step="2">
+          <p>In the real log they are scattered, and from the outside a broken block looks like any other.</p>
+          <p>The only way to tell is to read what each one went through.</p>
+        </div>
+      </div>
+    </div>
+    <div class="wrap">
+      <div class="pull-stat">
+        <p class="pull-number">1<span class="unit"> in </span><span data-fact="one_in" data-countup></span></p>
+        <p class="pull-caption">blocks in the log were labelled broken. Rare enough to miss by eye, common enough that missing them matters.</p>
+      </div>
+
+      <p>Before training anything I checked which steps move with the label at all. Plain correlation on the training blocks already shows the shape of the problem: broken blocks are mostly missing things, not doing strange things.</p>
+      <aside class="margin-note">Correlation only sees straight-line links between one count and the label. A model can combine steps, so a weak correlation here does not make an event useless.</aside>
+      <figure class="chart" id="chart-correlation">
+        <figcaption>
+          <p class="chart-title"></p>
+          <p class="chart-how">How to read this: each line runs from zero to the event’s correlation with the “broken” label. Orange goes up in broken blocks, grey goes down. Events with |r| under 0.1 are left out.</p>
+        </figcaption>
+        <div class="chart-body" style="--h: 520px"></div>
+        <p class="sr-only chart-alt"></p>
+        <p class="sr-only chart-live" aria-live="polite"></p>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 02 Diaries -->
+  <section class="section" id="diary" aria-labelledby="diary-title">
+    <div class="wrap">
+      <p class="section-no">02</p>
+      <h2 id="diary-title">Every block keeps a diary</h2>
+      <p>Each log line about a block is one entry, and each entry is one of <span data-fact="event_types"></span> event types. Hadoop stores <span data-fact="typical_copies"></span> copies of every block, so a healthy diary is dull on purpose: most steps happen exactly <span data-fact="typical_copies"></span> times. This is the median healthy block in my training set.</p>
+      <aside class="margin-note" id="names-note"></aside>
+      <ol class="diary" id="typical-diary" aria-label="The typical healthy block, step by step"></ol>
+      <p class="note">Median over <span data-fact="healthy_training_blocks"></span> healthy training blocks. One square per time the step happened.</p>
+
+      <h3 id="dumbbell-title">Broken diaries skip steps, and add ones healthy blocks almost never have</h3>
+      <div class="dumbbell" id="dumbbell" aria-labelledby="dumbbell-title"></div>
+      <p class="legend" aria-hidden="true">
+        <span><span class="swatch" style="background: var(--healthy); border-radius: 50%;"></span>healthy blocks</span>
+        <span><span class="swatch swatch-broken" style="border-radius: 50%;"></span>broken blocks</span>
+      </p>
+      <p class="note">Share of <span data-fact="healthy_training_blocks"></span> healthy and <span data-fact="broken_training_blocks"></span> broken training blocks where the step appears at least once.</p>
+
+      <div class="pull-stat">
+        <p class="pull-number"><span data-fact="distinct_patterns_train" data-countup></span></p>
+        <p class="pull-caption">different diaries among <span data-fact="train_blocks"></span> training blocks. Healthy blocks repeat themselves almost word for word.</p>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <figure class="chart wide" id="chart-barcode">
+        <figcaption>
+          <p class="chart-title"></p>
+          <p class="chart-how">How to read this: each vertical strip is one real test block, and each of its <span data-fact="event_types"></span> rows is one event type, darker for more. Identical diaries sit side by side. Click a strip, or focus the wall and use the arrow keys and Enter, to read that block below.</p>
+        </figcaption>
+        <div class="chart-body" style="--h: 260px"></div>
+        <p class="sr-only chart-alt"></p>
+        <p class="sr-only chart-live" aria-live="polite"></p>
+        <p class="note chart-note"></p>
+      </figure>
+
+      <h3 id="real-diary-title">Open a real diary</h3>
+      <p>Or let me pick one from the test set, which no model saw while learning. Steps that differ from the typical healthy block turn orange.</p>
+      <div class="button-row">
+        <button class="button" type="button" id="open-diary">Open a real diary</button>
+      </div>
+      <div class="diary-panel" id="real-diary" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- 03 Detective -->
+  <section class="section" id="detective" aria-labelledby="detective-title">
+    <div class="wrap">
+      <p class="section-no">03</p>
+      <h2 id="detective-title">Your turn</h2>
+      <p>A real test diary. Healthy or broken? Hold it up against the typical block above. About half of these are broken, and a couple in every ten are blocks my model got wrong, so do not trust it blindly either.</p>
+      <div class="detective" id="detective-game">
+        <div class="detective-head">
+          <span id="detective-round"></span>
+          <span class="scoreboard" id="detective-score" aria-live="polite"></span>
+        </div>
+        <ol class="diary" id="detective-diary" aria-label="Diary of the block to judge"></ol>
+        <div class="button-row" id="detective-choices">
+          <button class="button" type="button" data-guess="0">Looks healthy</button>
+          <button class="button" type="button" data-guess="1">Something is wrong</button>
+        </div>
+        <div id="detective-reveal" aria-live="polite"></div>
+        <div class="button-row">
+          <button class="button" type="button" id="detective-next" hidden>Next block</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 Trap -->
+  <section class="section" id="trap" aria-labelledby="trap-title">
+    <div class="wrap">
+      <p class="section-no">04</p>
+      <h2 id="trap-title">The <span data-fact="baseline_test_accuracy" data-format="pct0"></span> trap</h2>
+      <p>A guard who says “fine” to every one of the <span data-fact="test_blocks"></span> test blocks sounds impressive on paper. Guess the score before you look.</p>
+      <div class="button-row">
+        <button class="button" type="button" id="trap-toggle" aria-pressed="false" aria-controls="trap-table">Show the lazy guard’s score</button>
+      </div>
+      <div class="table-wrap" id="trap-table" hidden>
+        <table>
+          <caption>Test set, <span data-fact="test_blocks"></span> blocks</caption>
+          <thead>
+            <tr><th scope="col"></th><th scope="col" class="num">Lazy guard</th><th scope="col" class="num"><span data-fact="best_model_display"></span></th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Correct overall</th><td class="num" data-fact="baseline_test_accuracy" data-format="pct2"></td><td class="num" data-fact="best_test_accuracy" data-format="pct2"></td></tr>
+            <tr><th scope="row">Broken blocks found</th><td class="num">0 of <span data-fact="test_anomalies"></span></td><td class="num"><span data-fact="best_test_found"></span> of <span data-fact="test_anomalies"></span></td></tr>
+          </tbody>
+        </table>
+        <p>Two accuracy figures under three points apart, and one of them found nothing. That is why I never judged a model on accuracy: I looked at how many broken blocks it found and how many of its alarms were real.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 Dial -->
+  <section class="section" id="dial" aria-labelledby="dial-title">
+    <div class="wrap">
+      <p class="section-no">05</p>
+      <h2 id="dial-title">Where I set the alarm</h2>
+      <p>My random forest gives each block a score between 0 and 1. The score is not the decision; a cut-off is. Drag it and watch the <span data-fact="validation_blocks"></span> validation blocks I used to choose mine.</p>
+      <aside class="margin-note">Why ten false alarms for one miss? It is my assumption, not a measurement: a missed failure can lose data, a false alarm costs someone a few minutes. A different ratio would move every cut-off on this page.</aside>
+
+      <div class="dial">
+        <label for="dial-slider" class="sr-only">Alarm threshold</label>
+        <div class="dial-ends" aria-hidden="true"><span>relaxed</span><span>jumpy</span></div>
+        <div class="slider-wrap">
+          <input type="range" id="dial-slider" min="0" max="1" step="1" value="0">
+          <div class="slider-tick" id="slider-tick" aria-hidden="true"><span>my cut-off</span></div>
+        </div>
+        <p class="dial-threshold" id="dial-threshold"></p>
+
+        <div class="meter">
+          <div class="meter-label"><span>Broken blocks</span><span class="num" id="meter-found-text"></span></div>
+          <div class="meter-track" aria-hidden="true"><div class="meter-fill broken" id="meter-found"></div></div>
+        </div>
+        <div class="meter">
+          <div class="meter-label"><span>Healthy blocks wrongly flagged</span><span class="num" id="meter-false-text"></span></div>
+          <div class="meter-track" aria-hidden="true"><div class="meter-fill ink" id="meter-false"></div></div>
+        </div>
+
+        <p class="dial-sentence" id="dial-sentence" aria-live="polite"></p>
+        <div class="button-row">
+          <button class="button button-quiet" type="button" id="dial-chosen">Snap back to my cut-off</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="pair wide">
+        <figure class="chart" id="chart-scores">
+          <figcaption>
+            <p class="chart-title"></p>
+            <p class="chart-how">How to read this: validation blocks by score, broken above the line, healthy below, on a log scale. The black line is the cut-off on the dial; everything to its right raises the alarm.</p>
+          </figcaption>
+          <div class="chart-body" style="--h: 300px"></div>
+          <p class="sr-only chart-alt"></p>
+          <p class="sr-only chart-live" aria-live="polite"></p>
+        </figure>
+        <figure class="chart" id="chart-cost">
+          <figcaption>
+            <p class="chart-title"></p>
+            <p class="chart-how">How to read this: the cost (10 × missed + false alarms) at each cut-off, log scale. The black line follows the dial.</p>
+          </figcaption>
+          <div class="chart-body" style="--h: 300px"></div>
+          <p class="sr-only chart-alt"></p>
+          <p class="sr-only chart-live" aria-live="polite"></p>
+        </figure>
+      </div>
+
+      <h3>The final exam</h3>
+      <p>With the cut-off fixed, I ran the random forest once on the <span data-fact="test_blocks"></span> test blocks it had never seen. It found <span data-fact="best_test_found" class="broken-text"></span> of the <span data-fact="test_anomalies"></span> broken ones and missed <span data-fact="best_test_missed"></span>. Of every 100 alarms, <span data-fact="best_test_precision" data-format="per100"></span> were real.</p>
+      <div class="pull-stat">
+        <p class="pull-number"><span data-fact="best_test_false_alarms" data-countup></span><span class="unit"> false alarms</span></p>
+        <p class="pull-caption">in <span data-fact="test_blocks"></span> test blocks, plus <span data-fact="best_test_missed"></span> missed. Out of <span data-fact="test_normal"></span> healthy blocks, the alarm rang for <span data-fact="best_test_false_alarms"></span>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 Models -->
+  <section class="section" id="models" aria-labelledby="models-title">
+    <div class="wrap">
+      <p class="section-no">06</p>
+      <h2 id="models-title"><span data-fact="model_count_word"></span> models, one rule</h2>
+      <p>Each model learned from the same <span data-fact="train_blocks"></span> training blocks and picked its own cut-off with the same cost rule. Sort by any column. The shaded row is the one I kept.</p>
+      <div class="table-wrap wide">
+        <table class="dense" id="model-table">
+          <caption>Validation results, <span data-fact="validation_blocks"></span> blocks (<span data-fact="validation_anomalies"></span> broken)</caption>
+          <thead><tr></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="pair wide">
+        <figure class="chart" id="chart-roc">
+          <figcaption>
+            <p class="chart-title"></p>
+            <p class="chart-how">How to read this: higher and further left is better. The view is zoomed into the top-left corner because every curve lives there.</p>
+          </figcaption>
+          <div class="chart-body" style="--h: 340px"></div>
+          <p class="sr-only chart-alt"></p>
+          <p class="sr-only chart-live" aria-live="polite"></p>
+        </figure>
+        <figure class="chart" id="chart-pr">
+          <figcaption>
+            <p class="chart-title"></p>
+            <p class="chart-how">How to read this: precision (real alarms) against recall (broken blocks found), zoomed to recall above 99%. Dots mark each model’s chosen cut-off.</p>
+          </figcaption>
+          <div class="chart-body" style="--h: 340px"></div>
+          <p class="sr-only chart-alt"></p>
+          <p class="sr-only chart-live" aria-live="polite"></p>
+        </figure>
+      </div>
+
+      <figure class="chart wide" id="chart-confusion">
+        <figcaption>
+          <p class="chart-title"></p>
+          <p class="chart-how">How to read this: one 2 × 2 grid per model. Rows are the truth, columns the alarm. The top-right square counts false alarms and the bottom-left counts missed broken blocks.</p>
+        </figcaption>
+        <div class="button-row chart-toggle">
+          <button class="button button-quiet" type="button" data-set="validation" aria-pressed="true">Validation, all models</button>
+          <button class="button button-quiet" type="button" data-set="test" aria-pressed="false">Test, the three I tested</button>
+        </div>
+        <div class="chart-body" style="--h: 640px"></div>
+        <p class="sr-only chart-alt"></p>
+        <p class="sr-only chart-live" aria-live="polite"></p>
+      </figure>
+
+      <p>Only the three cheapest models on validation were run on the test set, once each, with the cut-off they had already chosen. I did not look at test results before that.</p>
+      <div class="table-wrap">
+        <table id="test-table">
+          <caption>The three tested on blocks they had never seen</caption>
+          <thead>
+            <tr><th scope="col">Model</th><th scope="col" class="num">Found</th><th scope="col" class="num">Missed</th><th scope="col" class="num">False alarms</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="note">Test set: <span data-fact="test_blocks"></span> blocks, <span data-fact="test_anomalies"></span> of them broken.</p>
+
+      <aside class="margin-note">Bias-variance in one picture: a shallow tree is too simple for both sets, a deep one starts learning the training blocks by heart.</aside>
+      <figure class="chart" id="chart-depth">
+        <figcaption>
+          <p class="chart-title"></p>
+          <p class="chart-how">How to read this: F1 at the default 0.5 cut for trees of each depth. Depths below 5 score under 0.98 and sit below this zoomed view.</p>
+        </figcaption>
+        <div class="chart-body" style="--h: 300px"></div>
+        <p class="sr-only chart-alt"></p>
+        <p class="sr-only chart-live" aria-live="polite"></p>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 07 Mistakes -->
+  <section class="section" id="mistakes" aria-labelledby="mistakes-title">
+    <div class="wrap">
+      <p class="section-no">07</p>
+      <h2 id="mistakes-title">The <span data-fact="mistakes" data-format="word"></span> it got wrong</h2>
+      <p>Out of <span data-fact="test_blocks"></span> test blocks, these are the only ones where the random forest and the labels disagree. I show only the steps that differ from a typical healthy block.</p>
+      <p id="mistakes-summary"></p>
+      <ol class="mistake-list" id="mistake-list"></ol>
+    </div>
+  </section>
+
+  <!-- 08 What the model looks at -->
+  <section class="section" id="looks" aria-labelledby="looks-title">
+    <div class="wrap">
+      <p class="section-no">08</p>
+      <h2 id="looks-title">What the model looks at</h2>
+      <p>The forest’s own bookkeeping says which counts it splits on most, and PCA says how many independent directions the counts really have.</p>
+      <div class="pair wide">
+        <figure class="chart" id="chart-importance">
+          <figcaption>
+            <p class="chart-title"></p>
+            <p class="chart-how">How to read this: impurity-based importance, the share of all splitting gain in the 200 trees. The ten largest are shown.</p>
+          </figcaption>
+          <div class="chart-body" style="--h: 560px"></div>
+          <p class="sr-only chart-alt"></p>
+          <p class="sr-only chart-live" aria-live="polite"></p>
+        </figure>
+        <figure class="chart" id="chart-pca">
+          <figcaption>
+            <p class="chart-title"></p>
+            <p class="chart-how">How to read this: grey bars are each component’s share of the variance of the standardised training counts; the orange line adds them up.</p>
+          </figcaption>
+          <div class="chart-body" style="--h: 320px"></div>
+          <p class="sr-only chart-alt"></p>
+          <p class="sr-only chart-live" aria-live="polite"></p>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 09 Clusters -->
+  <section class="section" id="clusters" aria-labelledby="clusters-title">
+    <div class="wrap">
+      <p class="section-no">09</p>
+      <h2 id="clusters-title">Do broken blocks cluster?</h2>
+      <p>Not much. I fitted k-means on <span data-fact="kmeans_fit_blocks"></span> normal training blocks, then dropped every training block into its nearest cluster. One small cluster is mostly broken, but most broken blocks land in clusters that look normal. Clustering helped me describe the data; it would make a poor detector.</p>
+      <div class="pair wide">
+        <figure class="chart" id="chart-elbow">
+          <figcaption>
+            <p class="chart-title"></p>
+            <p class="chart-how">How to read this: inertia (total squared distance to the nearest centre) for k = 1 to 10. An elbow would be a sharp bend.</p>
+          </figcaption>
+          <div class="chart-body" style="--h: 300px"></div>
+          <p class="sr-only chart-alt"></p>
+          <p class="sr-only chart-live" aria-live="polite"></p>
+        </figure>
+        <figure class="chart" id="chart-clusters">
+          <figcaption>
+            <p class="chart-title"></p>
+            <p class="chart-how">How to read this: share of each cluster’s training blocks that are broken, with the cluster size underneath.</p>
+          </figcaption>
+          <div class="chart-body" style="--h: 300px"></div>
+          <p class="sr-only chart-alt"></p>
+          <p class="sr-only chart-live" aria-live="polite"></p>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 Rules -->
+  <section class="section" id="rules" aria-labelledby="rules-title">
+    <div class="wrap">
+      <p class="section-no">10</p>
+      <h2 id="rules-title">What a small tree wrote down</h2>
+      <p>The forest is far too big to read. So I trained a separate tree only <span data-fact="rule_tree_depth"></span> questions deep, on the same blocks, purely to explain the main splits. It never scores anything on this page. Its rules, in my words and as scikit-learn printed them:</p>
+      <ol class="rule-list" id="rule-list"></ol>
+      <p class="note" id="rule-legend"></p>
+    </div>
+  </section>
+
+  <!-- 11 Notebooks -->
+  <section class="section" id="notebooks" aria-labelledby="notebooks-title">
+    <div class="wrap">
+      <p class="section-no">11</p>
+      <h2 id="notebooks-title">From the notebooks</h2>
+      <p>The charts above are redrawn from saved results so they work on a phone. These are the original matplotlib figures from my three notebooks, only resized. Select one to see it full size.</p>
+      <ol class="figure-list" id="figure-list"></ol>
+      <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-caption">
+        <img id="lightbox-image" alt="">
+        <p id="lightbox-caption" class="figure-caption"></p>
+        <form method="dialog"><button class="button" type="submit">Close</button></form>
+      </dialog>
+    </div>
+  </section>
+
+  <!-- 12 Limits -->
+  <section class="section" id="limits" aria-labelledby="limits-title">
+    <div class="wrap">
+      <p class="section-no">12</p>
+      <h2 id="limits-title">What this does not show</h2>
+      <ul class="plain-list">
+        <li><strong>It counts steps and ignores their order.</strong> A block whose steps arrived in a strange order, but in normal numbers, looks healthy to every model here.</li>
+        <li><strong>It is one cluster in <span data-fact="log_year"></span>.</strong> <span data-fact="machines"></span> machines, <span data-fact="log_hours" data-format="decimal1"></span> hours, one Hadoop version, benchmark jobs. I have no evidence the cut-off would carry over to anything else.</li>
+        <li><strong>The labels came from rules, not from failures someone confirmed.</strong> My models learned to agree with those rules.</li>
+        <li><strong>Patterns, not causes.</strong> “Tried to delete a block that was not there” is the forest’s favourite clue, but it is probably a symptom of an earlier failure, not the failure itself.</li>
+        <li><strong>The near-perfect scores are partly the data.</strong> Only <span data-fact="distinct_patterns_train"></span> different diaries appear in <span data-fact="train_blocks"></span> training blocks, so a model that memorises patterns does very well. Published studies report similarly high scores on this dataset.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 13 Method -->
+  <section class="section" id="method" aria-labelledby="method-title">
+    <div class="wrap">
+      <p class="section-no">13</p>
+      <h2 id="method-title">How I did it</h2>
+      <p><span class="label">Data.</span> Loghub HDFS_v1, Zenodo record <span data-fact="zenodo_record" data-format="text"></span>: <span data-fact="log_lines"></span> log lines grouped into <span data-fact="total_blocks"></span> blocks. Only the <span data-fact="event_types"></span> event-count columns go into the models. I dropped the block id and the matrix’s own Label and Type columns, because Type is only filled in for failed blocks and would hand the answer over.</p>
+      <p><span class="label">Split.</span> One stratified split set aside <span data-fact="test_fraction" data-format="pct0"></span> of blocks for testing (<span data-fact="test_blocks"></span>). The rest became training (<span data-fact="train_blocks"></span>) and validation (<span data-fact="validation_blocks"></span>). Seed <span data-fact="random_state" data-format="text"></span> everywhere. Notebook 03 ends with checks that no scaler, PCA or model ever saw a validation or test row.</p>
+      <p><span class="label">Course topics.</span> Preprocessing, correlation, logistic regression, k-nearest neighbours, Naive Bayes, decision trees and rules, linear SVM, k-means, PCA, a small neural network, bias-variance, bagging (random forest), boosting (AdaBoost), and accuracy, precision, recall, F1, AUC, log loss and confusion matrices.</p>
+      <p><span class="label">Cut-offs.</span> <span data-fact="cost_rule"></span> Every model’s cut-off is the one with the lowest validation cost; a block raises the alarm when its score is at or above it.</p>
+      <p>Code, notebooks and data pipeline: <a href="https://github.com/Vanshr45/hdfs-incident-radar">github.com/Vanshr45/hdfs-incident-radar</a></p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>Made by Vansh Rana for the CA2 skill-based assessment.</p>
+    <p class="note">Every chart and number here is drawn from small JSON files that <code>src/export_web_data.py</code> exports from the saved notebook results. Nothing is trained or simulated in the browser.</p>
+  </div>
+</footer>
+</body>
+</html>

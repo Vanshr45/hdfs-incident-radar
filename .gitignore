@@ -8,3 +8,7 @@ __pycache__/
 .env
 *.zip
 .DS_Store
+
+# Local only: old outputs kept instead of deleting, and Vercel CLI state
+_cleanup_trash/
+.vercel/

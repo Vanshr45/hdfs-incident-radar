@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <!-- TODO replace with real URL --><img src="https://img.shields.io/badge/Live%20website-coming%20soon-6B7280" alt="Live website coming soon">
+  <!-- TODO replace with the GitHub Pages URL --><a href="[live website link]"><img src="https://img.shields.io/badge/Live%20website-GitHub%20Pages-0F5E66" alt="Live website"></a>
   <!-- TODO replace with real URL --><img src="https://img.shields.io/badge/Project%20report-coming%20soon-6B7280" alt="Project report coming soon">
   <!-- TODO replace with real URL --><img src="https://img.shields.io/badge/LinkedIn%20post-coming%20soon-6B7280" alt="LinkedIn post coming soon">
 </p>
@@ -24,6 +24,7 @@
 
 - [Overview](#overview)
 - [Key results](#key-results)
+- [Screenshots](#screenshots)
 - [How it works](#how-it-works)
 - [Dataset](#dataset)
 - [Methodology](#methodology)
@@ -40,13 +41,17 @@ Distributed systems write large volumes of logs that engineers cannot read manua
 
 ## Key results
 
-Final results below are taken directly from [`reports/tables/final_test_results.csv`](reports/tables/final_test_results.csv). Thresholds were selected on validation data before this final test evaluation.
+Final results below are taken directly from [`reports/tables/final_test_results.csv`](reports/tables/final_test_results.csv). The three models with the lowest validation cost (10 × missed anomalies + false alarms) were scored once on the 115,013-block test set, at thresholds chosen on validation data.
 
-| Model | Precision | Recall | F1 | AUC | Log loss |
-|---|---:|---:|---:|---:|---:|
-| Random forest | 0.981341 | 0.999406 | 0.990291 | 0.999945 | 0.092249 |
-| MLP | 0.976764 | 0.998515 | 0.987520 | 0.999734 | 0.000722 |
-| Logistic regression, balanced | 0.965310 | 0.999703 | 0.982205 | 0.999691 | 0.005894 |
+| Model | Threshold | Precision | Recall | F1 | AUC | Log loss | Found (TP) | Missed (FN) | False alarms (FP) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Random forest | 0.135 | 0.998517 | 0.999703 | 0.999110 | 0.999995 | 0.000508 | 3,367 | 1 | 5 |
+| kNN (k = 5) | 0.205 | 0.997925 | 0.999703 | 0.998813 | 0.999838 | 0.001335 | 3,367 | 1 | 7 |
+| Decision tree (depth 12) | 0.030 | 0.997924 | 0.999109 | 0.998516 | 0.999553 | 0.001207 | 3,365 | 3 | 7 |
+
+The always-normal baseline is 97.07% accurate on the same test set and finds none of the 3,368 broken blocks. Validation results for all eleven rows (ten models and the baseline) are in [`reports/tables/model_comparison.csv`](reports/tables/model_comparison.csv), and every hyperparameter is in [`reports/tables/model_settings.csv`](reports/tables/model_settings.csv).
+
+**Live website:** [live website link] (an interactive explainer built from these results; source in [`docs/`](docs/)).
 
 <p align="center">
   <img src="reports/figures/class_balance.png" alt="Block class balance" width="31%">
@@ -55,6 +60,16 @@ Final results below are taken directly from [`reports/tables/final_test_results.
 </p>
 
 Class balance shows why accuracy cannot stand alone. Event-label correlation summarises useful count patterns, and the ROC curves compare validation-selected models on the untouched test set.
+
+## Screenshots
+
+The website in [`docs/`](docs/) draws every chart from the saved results (more in [`reports/website_screenshots/`](reports/website_screenshots/)).
+
+<p align="center">
+  <img src="reports/website_screenshots/desktop_top.png" alt="Masthead and the pipeline diagram following one real block from log lines to alarm" width="32%">
+  <img src="reports/website_screenshots/desktop_haystack_step2.png" alt="The haystack grid with broken blocks scattered among healthy ones" width="32%">
+  <img src="reports/website_screenshots/mobile_dial.png" alt="The alarm dial on a phone, with the score histogram and cost curve" width="22%">
+</p>
 
 ## How it works
 
@@ -65,6 +80,7 @@ flowchart LR
     C --> D[PCA and supervised models]
     D --> E[Validation threshold selection]
     E --> F[Anomaly alert]
+    E --> G[docs/data JSON for the website]
 ```
 
 ## Dataset
@@ -93,7 +109,7 @@ Only `E1` to `E29` event-count fields are used as model features. Block identifi
 <details>
 <summary>Models, metrics, and threshold</summary>
 
-The comparison includes a PCA reconstruction-error detector, logistic regression with and without balanced class weights, decision tree, kNN, Gaussian Naive Bayes, linear SVM, random forest, AdaBoost, and MLP. Metrics are accuracy, precision, recall, F1, AUC, log loss, and confusion-matrix counts. A false negative is assigned a cost 10 times that of a false positive; validation data selects the alarm threshold.
+The comparison includes an always-normal baseline, a PCA reconstruction-error detector (fitted on normal training blocks only), logistic regression with and without balanced class weights, a decision tree (depth chosen by a bias-variance sweep), kNN (k chosen from 5, 15 and 25), Gaussian Naive Bayes, linear SVM, random forest, AdaBoost, and a small MLP. Metrics are accuracy, precision, recall, F1, AUC, log loss, and confusion-matrix counts. A false negative is assigned a cost 10 times that of a false positive. On validation data, every distinct score of each model (plus a 201-point grid) is tried as a threshold, and a block raises the alarm when its score is at or above the threshold; the same rule is used for evaluation. Notebook 03 ends with leakage checks.
 
 </details>
 
@@ -101,16 +117,18 @@ The comparison includes a PCA reconstruction-error detector, logistic regression
 
 ```text
 .
-├── docs/                 Project notes, citation, assets, and report placeholder
-├── notebooks/            Cleaning, EDA, and model-evaluation notebooks
+├── docs/                 Website (index.html, css/, js/, data/), preview.html, notes, assets
+├── notebooks/            01 cleaning and split, 02 EDA, 03 models and evaluation
 ├── reports/
 │   ├── figures/          Saved charts used in analysis and reporting
-│   ├── tables/           Saved validation and final-test result tables
-│   └── web_data/         Compact JSON data for a future static website
-├── src/                  Reserved for reusable source code
+│   └── tables/           Validation, test, settings and EDA tables
+├── src/
+│   ├── export_web_data.py   Writes docs/data/*.json from the saved results
+│   ├── build_preview.py     Writes docs/preview.html (single file, opens offline)
+│   └── make_social_image.py Draws docs/assets/social_preview.png from the haystack grid
 ├── LICENSE               MIT licence
 ├── CITATION.cff          Citation metadata
-└── requirements.txt      Python dependencies
+└── requirements.txt      Python dependencies (pinned)
 ```
 
 ## Getting started
@@ -123,15 +141,35 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Download the dataset as described above, then start Jupyter and run the notebooks in order: `01_cleaning_and_visualization.ipynb`, `02_eda_and_statistical_analysis.ipynb`, and `03_model_development_and_evaluation.ipynb`. All split-dependent work uses `random_state=42`.
+Download the dataset as described above, then run the notebooks in order: `01_cleaning_and_visualization.ipynb` (creates `datasets/processed/hdfs_clean.csv` and `splits.npz`), `02_eda_and_statistical_analysis.ipynb`, and `03_model_development_and_evaluation.ipynb` (trains every model and saves the tables, figures and `models/best_final_model.pkl`). All split-dependent work uses `random_state=42`.
+
+```bash
+for nb in notebooks/0*.ipynb; do jupyter nbconvert --to notebook --execute --inplace "$nb"; done
+```
+
+### Rebuilding the website data
+
+The website never trains anything; it only shows saved results. After the notebooks have run:
+
+```bash
+python src/export_web_data.py   # writes docs/data/*.json (incl. charts.json) and docs/assets/figures/, printing every number
+python src/build_preview.py     # writes docs/preview.html, a single file that opens by double-click
+python src/make_social_image.py  # redraws docs/assets/social_preview.png (1200 x 630) from facts.json
+```
+
+To view the site locally:
+
+```bash
+cd docs && python -m http.server 8000   # then open http://localhost:8000
+```
 
 ## Limitations
 
-This is one labelled benchmark dataset from one distributed system. A threshold chosen with the assumed 10:1 missed-failure cost may not match another operational setting. Event counts describe patterns associated with known labels; they do not identify the root cause of an incident.
+This is one labelled benchmark dataset from one distributed system, and the labels came from hand-written rules, so the models learned to agree with those rules. Event counts ignore the order of events. A threshold chosen with the assumed 10:1 missed-failure cost may not match another operational setting. Event counts describe patterns associated with known labels; they do not identify the root cause of an incident.
 
 ## Roadmap
 
-The planned next step is a static public website hosted with GitHub Pages. It will use the compact files in `reports/web_data/`.
+The static website in [`docs/`](docs/) is published with GitHub Pages (Settings → Pages → deploy from the `main` branch, `/docs` folder). Possible next steps are adding event order (sequence features) and testing on a second log dataset.
 
 ## Acknowledgements and citation
 

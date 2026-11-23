@@ -1,10 +1,10 @@
-,correlation_with_anomaly,template
+event,correlation_with_anomaly,template
 E9,-0.6035911201562534,[*]Received block[*]of size[*]from[*]
 E11,-0.6001514177812682,[*]PacketResponder[*]for block[*]terminating[*]
 E20,0.5295735703192077,[*]Unexpected error trying to delete block[*]BlockInfo not found in volumeMap[*]
 E7,0.4284233259444431,[*]writeBlock[*]received exception[*]
-E18,0.309808043422785,[*]Starting thread to transfer block[*]to[*]
 E25,0.309808043422785,[*]BLOCK* ask[*]to replicate[*]to[*]
+E18,0.309808043422785,[*]Starting thread to transfer block[*]to[*]
 E16,0.3074637566767538,[*]:Transmitted block[*]to[*]
 E6,0.299434660375728,[*]Received block[*]src:[*]dest:[*]of size[*]
 E26,-0.2592499972263024,[*]BLOCK* NameSystem[*]addStoredBlock: blockMap updated:[*]is added to[*]size[*]
@@ -27,4 +27,3 @@ E4,-0.013730182624097307,[*]Got exception while serving[*]to[*]
 E19,0.013151005924450447,[*]Reopen Block[*]
 E2,-0.007030487943022644,[*]Verification succeeded for[*]
 E3,-0.004305419095360653,[*]Served block[*]to[*]
-E22,,[*]BLOCK* NameSystem[*]allocateBlock:[*]
