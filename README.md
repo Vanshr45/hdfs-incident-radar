@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <!-- TODO replace with the GitHub Pages URL --><a href="[live website link]"><img src="https://img.shields.io/badge/Live%20website-GitHub%20Pages-0F5E66" alt="Live website"></a>
+  <a href="https://hdfs-incident-radar.vercel.app"><img src="https://img.shields.io/badge/Live%20website-Vercel-0F5E66" alt="Live website"></a>
   <!-- TODO replace with real URL --><img src="https://img.shields.io/badge/Project%20report-coming%20soon-6B7280" alt="Project report coming soon">
   <!-- TODO replace with real URL --><img src="https://img.shields.io/badge/LinkedIn%20post-coming%20soon-6B7280" alt="LinkedIn post coming soon">
 </p>
@@ -51,7 +51,7 @@ Final results below are taken directly from [`reports/tables/final_test_results.
 
 The always-normal baseline is 97.07% accurate on the same test set and finds none of the 3,368 broken blocks. Validation results for all eleven rows (ten models and the baseline) are in [`reports/tables/model_comparison.csv`](reports/tables/model_comparison.csv), and every hyperparameter is in [`reports/tables/model_settings.csv`](reports/tables/model_settings.csv).
 
-**Live website:** [live website link] (an interactive explainer built from these results; source in [`docs/`](docs/)).
+**Live website:** [hdfs-incident-radar.vercel.app](https://hdfs-incident-radar.vercel.app) (an interactive explainer built from these results; source in [`docs/`](docs/)).
 
 <p align="center">
   <img src="reports/figures/class_balance.png" alt="Block class balance" width="31%">
@@ -169,7 +169,7 @@ This is one labelled benchmark dataset from one distributed system, and the labe
 
 ## Roadmap
 
-The static website in [`docs/`](docs/) is published with GitHub Pages (Settings → Pages → deploy from the `main` branch, `/docs` folder). Possible next steps are adding event order (sequence features) and testing on a second log dataset.
+The static website in [`docs/`](docs/) is deployed on Vercel at [hdfs-incident-radar.vercel.app](https://hdfs-incident-radar.vercel.app), with `docs/` as the project root and no build step. Possible next steps are adding event order (sequence features) and testing on a second log dataset.
 
 ## Acknowledgements and citation
 
