@@ -5,9 +5,9 @@
 (function () {
   'use strict';
 
-  var FIRST_DEPTH = 5;   // shallower trees score below the zoomed view
-  var Y_MIN = 0.993;
-  var Y_MAX = 0.9995;
+  var FIRST_DEPTH = 1;
+  var Y_MIN = 0;
+  var Y_MAX = 1;
 
   Radar.register('depth', function (data) {
     var C = Radar.chart;
@@ -28,8 +28,8 @@
       var x = C.linear(FIRST_DEPTH, lastRow.depth, left, right);
       var y = C.linear(Y_MIN, Y_MAX, bottom, top);
 
-      C.yAxis(root, y, left, [0.994, 0.996, 0.998], function (v) { return v.toFixed(3); }, right);
-      C.xAxis(root, x, bottom, [5, 10, 15, 20], String, left, right);
+      C.yAxis(root, y, left, [0, 0.25, 0.5, 0.75, 1], function (v) { return v.toFixed(2); }, right);
+      C.xAxis(root, x, bottom, [1, 5, 10, 15, 20], String, left, right);
       C.text(root, (left + right) / 2, height - 4, 'maximum tree depth', { 'text-anchor': 'middle' });
 
       [['train', colours.ink, 'training'], ['validation', colours.broken, 'validation']].forEach(function (series) {
@@ -43,7 +43,7 @@
       var cx = x(chosen.depth);
       var cy = y(chosen.validation);
       C.svg('circle', { cx: cx, cy: cy, r: 5, fill: colours.broken }, root);
-      C.annotate(root, cx + 2, cy + 6, x(13.5), y(0.9952),
+      C.annotate(root, cx + 2, cy + 6, x(13.5), y(0.45),
         ['depth ' + chosen.depth + ': validation F1', chosen.validation.toFixed(5) + ', the highest'], 'start');
 
       var points = rows.map(function (row) {
@@ -54,8 +54,7 @@
     });
 
     C.setTitle('chart-depth',
-      'Validation F1 peaks at depth ' + chosen.depth + ' (' + chosen.validation.toFixed(5) + ') while training F1 keeps ' +
-        'climbing to ' + maxTrain.toFixed(5),
+      'Validation F1 peaks at depth ' + chosen.depth + ' (' + chosen.validation.toFixed(5) + '); the maximum training F1 is ' + maxTrain.toFixed(5),
       'Training and validation F1 for trees of depth 1 to ' + sweep.depth.length + '. ' + sweep.depth.map(function (d, i) {
         return 'depth ' + d + ': ' + sweep.train_f1[i].toFixed(4) + ' / ' + sweep.validation_f1[i].toFixed(4);
       }).join('; ') + '.');

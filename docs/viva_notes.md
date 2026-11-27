@@ -1,5 +1,7 @@
 # Viva notes
 
+**Historical:** These notes describe the earlier stratified row split and predate the grouped evaluation. Use the notebooks and current result tables for the current methodology and numbers.
+
 Numbers below come from `reports/tables/model_comparison.csv` (validation), `reports/tables/final_test_results.csv` (test) and the printed outputs of notebooks 01–03.
 
 1. **Why is accuracy not enough here?**

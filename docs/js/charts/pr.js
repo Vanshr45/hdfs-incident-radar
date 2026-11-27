@@ -5,13 +5,14 @@
 (function () {
   'use strict';
 
-  var HIGHLIGHT = 'Random forest';
+  var HIGHLIGHT = 'Logistic regression';
 
   function per100(value) {
     return (value * 100).toFixed(1);
   }
 
   Radar.register('pr', function (data) {
+    HIGHLIGHT = data.facts.best_model;
     var C = Radar.chart;
     var pr = data.charts.pr;
     var chosen = {};
@@ -23,14 +24,14 @@
       var right = width - 12;
       var top = 10;
       var bottom = height - 46;
-      var yMin = 0.95;
+      var yMin = 0;
       var x = C.linear(pr.zoom_recall, 1, left, right);
       var y = C.linear(yMin, 1, bottom, top);
 
       var clip = C.svg('clipPath', { id: 'pr-clip' }, C.svg('defs', {}, root));
       C.svg('rect', { x: left, y: top - 4, width: right - left + 4, height: bottom - top + 4 }, clip);
-      C.yAxis(root, y, left, [0.95, 0.96, 0.97, 0.98, 0.99, 1], per100, right);
-      C.xAxis(root, x, bottom, [0.99, 0.995, 1], per100, left, right);
+      C.yAxis(root, y, left, [0, 0.25, 0.5, 0.75, 1], per100, right);
+      C.xAxis(root, x, bottom, [0, 0.25, 0.5, 0.75, 1], per100, left, right);
       C.text(root, (left + right) / 2, height - 4, 'broken blocks found, per 100', { 'text-anchor': 'middle' });
       C.text(root, left + 8, y(yMin + 0.004), 'real alarms per 100 ↑');
 
@@ -56,11 +57,11 @@
           stroke: mine ? colours.broken : colours.ink, 'stroke-width': 1.5 }, root);
         // Labels are stacked on the left, each with a leader to its model's chosen point.
         var label = curve.name + ': ' + per100(model.precision) + ' real per 100';
-        var labelX = x(0.9965);
+        var labelX = x(0.5);
         // When the label does not fit left of the dots, it goes on two lines.
         var lines = label.length * 8.45 > labelX - left - 8 ? [curve.name, per100(model.precision) + ' real per 100'] : label;
         var rank = labelRank.indexOf(curve.key);
-        C.annotate(root, cx - 5, cy + 2, labelX, y(0.992 - rank * 0.011), lines, 'end', mine ? 'hot' : 'ink');
+        C.annotate(root, cx - 5, cy + 2, labelX, y(0.9 - rank * 0.1), lines, 'end', mine ? 'hot' : 'ink');
         points.push({ x: cx, y: cy, text: curve.name + ' at its cut-off ' + Radar.format.score(model.threshold) +
           '\nfound ' + per100(model.recall) + ' per 100 · real alarms ' + per100(model.precision) + ' per 100' });
         curve.recall.forEach(function (recall, index) {
@@ -81,9 +82,9 @@
     var close = chosen.kNN && Math.abs(chosen[HIGHLIGHT].precision - chosen.kNN.precision) < 0.002;
     C.setTitle('chart-pr',
       'At their chosen cut-offs, real alarms per 100: ' + names.join(', ') +
-        (close ? '. The forest and nearest neighbours are almost indistinguishable above 99% recall' : ''),
+        (close ? '. The selected classifier and nearest neighbours have similar precision' : ''),
       'Precision-recall curves on the validation set for ' + pr.curves.map(function (c) { return c.name; }).join(', ') +
-        ', zoomed to recall above 99%. ' + pr.curves.map(function (c) {
+        '. ' + pr.curves.map(function (c) {
           var m = chosen[c.key];
           return c.name + ' chose recall ' + per100(m.recall) + ' and precision ' + per100(m.precision);
         }).join('; ') + '.');

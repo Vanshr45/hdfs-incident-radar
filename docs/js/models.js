@@ -33,8 +33,7 @@
     var headRow = table.querySelector('thead tr');
     var body = table.querySelector('tbody');
     var rows = data.models.validation.slice();
-    var best = rows.filter(function (m) { return !m.is_baseline; })
-      .sort(function (a, b) { return a.validation_cost - b.validation_cost; })[0];
+    var best = rows.filter(function (m) { return m.key === data.facts.best_model; })[0];
     var sortKey = 'validation_cost';
     var sortDirection = 'ascending';
 

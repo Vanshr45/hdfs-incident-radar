@@ -5,7 +5,7 @@
 (function () {
   'use strict';
 
-  var HIGHLIGHT = 'Random forest';
+  var HIGHLIGHT = 'Logistic regression';
 
   function percent(value, digits) {
     return (value * 100).toFixed(digits) + '%';
@@ -21,13 +21,14 @@
   }
 
   Radar.register('roc', function (data) {
+    HIGHLIGHT = data.facts.best_model;
     var C = Radar.chart;
     var roc = data.charts.roc;
     var outside = roc.curves.filter(function (curve) { return tprAt(curve, roc.zoom_fpr) < 0.95; });
     var inside = roc.curves.filter(function (curve) { return outside.indexOf(curve) === -1; });
     // The lowest value the visible curves reach at the right edge of the zoom sets the bottom of the view.
     var floor = Math.floor(Math.min.apply(null, inside.map(function (c) { return tprAt(c, roc.zoom_fpr); })) * 200) / 200;
-    var yMin = Math.min(floor - 0.005, 0.99);
+    var yMin = 0;
 
     C.mount('chart-roc', function (root, width, height) {
       var colours = C.colours();
@@ -96,8 +97,7 @@
     var lowest = Math.min.apply(null, inside.map(function (c) { return c.auc; }));
     var forestAuc = roc.curves.filter(function (c) { return c.key === HIGHLIGHT; })[0].auc;
     C.setTitle('chart-roc',
-      'Every model except the ' + outside.map(function (c) { return c.name; }).join(', ') +
-        ' has a validation AUC of at least ' + (Math.floor(lowest * 1000) / 1000).toFixed(3) + '; the random forest’s is ' +
+      'The lowest validation AUC shown is ' + (Math.floor(lowest * 1000) / 1000).toFixed(3) + '; the selected classifier’s is ' +
         forestAuc.toFixed(6),
       'ROC curves on the validation set, zoomed to false alarm rates up to ' + percent(roc.zoom_fpr, 0) +
         '. AUC by model: ' + roc.curves.map(function (c) { return c.name + ' ' + c.auc.toFixed(6); }).join('; ') + '.');

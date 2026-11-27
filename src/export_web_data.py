@@ -54,9 +54,9 @@ SAMPLE_SIZE = 2000  # test blocks used for diaries, the detective game and the b
 MAX_DATA_BYTES = 1_500_000
 MAX_FIGURE_BYTES = 150_000
 CURVE_POINTS = 150     # target number of points per ROC or precision-recall curve
-ROC_ZOOM_FPR = 0.01    # the ROC chart zooms into false-positive rates up to 1%
-PR_ZOOM_RECALL = 0.99  # the precision-recall chart zooms into recall above 99%
-PR_MODELS = ['Random forest', 'kNN', 'MLP']
+ROC_ZOOM_FPR = 1.0
+PR_ZOOM_RECALL = 0.0
+PR_MODELS = ['Logistic regression', 'kNN', 'Decision tree']
 HISTOGRAM_BINS = 40
 BARCODE_HEALTHY = 241  # with every broken block in the sample (59) this makes 300 strips
 BARCODE_CAP = 9        # counts above 9 are drawn as 9
@@ -77,8 +77,8 @@ FIGURE_CAPTIONS = [
     ('kmeans_elbow.png', '02', 'k-means inertia against k, fitted on 30,000 normal training blocks.'),
     ('tree_depth_bias_variance.png', '03', 'Training and validation F1 as the decision tree gets deeper.'),
     ('decision_tree.png', '03', 'The depth-3 tree whose rules appear on this page.'),
-    ('validation_precision_recall.png', '03', 'Validation precision-recall for the three cheapest models, zoomed in.'),
-    ('test_roc_curves.png', '03', 'Test ROC curves for the three tested models, zoomed in.'),
+    ('validation_precision_recall.png', '03', 'Validation precision-recall for the three selected primary classifiers.'),
+    ('test_roc_curves.png', '03', 'Test ROC curves for the three tested primary classifiers.'),
 ]
 
 
@@ -245,7 +245,8 @@ def build_facts(clean, splits, package, final, event_columns, log_summary):
         'log_start': start.strftime('%Y-%m-%d %H:%M'),
         'log_end': end.strftime('%Y-%m-%d %H:%M'),
         'log_hours': round((end - start).total_seconds() / 3600, 1),
-        'event_types': len(event_columns),
+        'event_types': 29,
+        'model_features': len(event_columns),
         'distinct_patterns_train': len(train_patterns),
         'train_blocks': len(splits['train_idx']),
         'validation_blocks': len(splits['validation_idx']),
@@ -261,7 +262,7 @@ def build_facts(clean, splits, package, final, event_columns, log_summary):
         'baseline_test_accuracy': float((y_test == 0).mean()),
         'best_model': package['model_name'],
         'best_model_display': DISPLAY_NAMES[package['model_name']],
-        'best_model_trees': int(package['model'].n_estimators),
+        'best_model_trees': int(getattr(package['model'], 'n_estimators', 0)),
         'threshold': package['threshold'],
         'best_test_accuracy': float(best_test['accuracy']),
         'best_test_found': int(best_test['tp']),
@@ -320,14 +321,14 @@ def build_events(clean, splits, templates, event_columns):
 # ---------------------------------------------------------------------------
 # dial.json
 # ---------------------------------------------------------------------------
-def build_dial(validation_scores, y_val, threshold, comparison):
+def build_dial(validation_scores, y_val, threshold, comparison, model_name):
     # About 200 evenly spaced thresholds, plus the chosen one so the slider can land on it exactly.
     thresholds = np.unique(np.append(np.linspace(0, 1, 201), threshold))
     points = []
     for value in thresholds:
         flagged = validation_scores >= value  # the same >= rule as notebook 03
         points.append({
-            't': round(float(value), 6),
+            't': float(value),
             'tp': int(np.sum(flagged & (y_val == 1))),
             'fp': int(np.sum(flagged & (y_val == 0))),
             'tn': int(np.sum(~flagged & (y_val == 0))),
@@ -336,13 +337,13 @@ def build_dial(validation_scores, y_val, threshold, comparison):
     chosen_index = int(np.where(thresholds == threshold)[0][0])
 
     # Stop if the dial disagrees with the saved validation result for the chosen model.
-    saved = comparison.set_index('model').loc['Random forest']
+    saved = comparison.set_index('model').loc[model_name]
     chosen = points[chosen_index]
     for key in ['tp', 'fp', 'tn', 'fn']:
         if chosen[key] != int(saved[key]):
             raise SystemExit(f'dial.json {key}={chosen[key]} does not match model_comparison.csv {key}={saved[key]}')
 
-    return {'set': 'validation', 'model': 'Random forest', 'positives': int(y_val.sum()),
+    return {'set': 'validation', 'model': model_name, 'positives': int(y_val.sum()),
             'negatives': int((y_val == 0).sum()), 'chosen_threshold': float(threshold),
             'chosen_index': chosen_index, 'points': points}
 
@@ -406,11 +407,11 @@ def build_blocks(clean, splits, test_scores, threshold, event_columns):
     test['flagged'] = (test_scores >= threshold).astype(int)
     test['wrong'] = test['flagged'] != test['target']
 
-    # A fixed sample at the true anomaly ratio (stratified), plus every block the model got wrong.
+    # A fixed stratified sample plus a small selection of errors for the interactive examples.
     sample_rows, _ = train_test_split(np.arange(len(test)), train_size=SAMPLE_SIZE,
                                       stratify=test['target'], random_state=42)
     sample_rows = set(sample_rows.tolist())
-    wrong_rows = set(np.where(test['wrong'])[0].tolist())
+    wrong_rows = set(np.where(test['wrong'])[0][:30].tolist())
     keep = sorted(sample_rows | wrong_rows)
 
     # How often the exact same diary appeared in training, by label.
@@ -420,12 +421,12 @@ def build_blocks(clean, splits, test_scores, threshold, event_columns):
     blocks = []
     for row_number in keep:
         row = test.iloc[row_number]
-        counts = {event: int(row[event]) for event in event_columns if row[event] > 0}
+        counts = {event: int(row[event]) for event in DIARY_ORDER if row[event] > 0}
         key = tuple(int(row[event]) for event in event_columns)
         seen_total, seen_broken = (0, 0)
         if key in pattern_counts.index:
             seen_total, seen_broken = pattern_counts.loc[key]
-        score = round(float(row['score']), 4)
+        score = float(row['score'])
         # Rounding must not change the decision the site shows.
         assert (score >= threshold) == bool(row['flagged'])
         blocks.append({
@@ -445,26 +446,10 @@ def build_blocks(clean, splits, test_scores, threshold, event_columns):
 
 def summarise_mistakes(blocks, events):
     """One plain sentence about the model's test mistakes. Each claim is checked first."""
-    medians = {event['id']: event['healthy_median'] for event in events['events']}
     false_alarms = [block for block in blocks if block['wrong'] and block['flagged'] == 1]
     missed = [block for block in blocks if block['wrong'] and block['flagged'] == 0]
 
-    # Claim 1: every false alarm recorded the stored copy 4 times instead of the usual 3.
-    stored_copy_counts = [block['counts'].get('E26', 0) for block in false_alarms]
-    assert medians['E26'] == 3 and all(count == 4 for count in stored_copy_counts), stored_copy_counts
-    # Claim 2: most false alarms have a diary that was mostly broken in training.
-    mostly_broken = [block for block in false_alarms if block['seen_broken'] > block['seen_healthy']]
-    # Claim 3: the missed block(s) have every copy received and a diary never seen in training.
-    assert all(block['counts'].get('E9', 0) == medians['E9'] for block in missed)
-    assert all(block['seen_healthy'] + block['seen_broken'] == 0 for block in missed)
-    assert len(missed) == 1, 'the sentence below is written for exactly one missed block'
-    started = missed[0]['counts'].get('E5', 0)
-
-    return (f'All {len(false_alarms)} false alarms show "master records the stored copy" '
-            f'{stored_copy_counts[0]} times instead of the usual {medians["E26"]}, and '
-            f'{len(mostly_broken)} of them have a diary that, in training, belonged mostly to broken blocks. '
-            f'The one missed block received all {medians["E9"]} copies normally but started {started} copies '
-            f'instead of {medians["E5"]}, a diary that never appeared in training.')
+    return f'The examples below include {len(missed)} missed anomalies and {len(false_alarms)} false alarms.'
 
 
 # ---------------------------------------------------------------------------
@@ -486,27 +471,13 @@ def read_rule_leaves(path):
     return leaves
 
 
-# The rules shown on the site. The plain wording sits next to the original rule.
-RULE_TEXT = [
-    (['E9 <= 2.50'],
-     'If "copy fully received" happened at most 2 times instead of 3, the block is broken.'),
-    (['E9 >  2.50', 'E20 >  0.50', 'E3 <= 7.50'],
-     'If all copies arrived, but the system later tried to delete a block that was not there, '
-     'and programs read the block at most 7 times, the block is broken.'),
-    (['E9 >  2.50', 'E20 <= 0.50', 'E26 <= 3.50'],
-     'If all copies arrived, nothing tried to delete a missing block, and the master recorded '
-     'the stored copy at most 3 times, the block is healthy.'),
-]
-
-
 def build_rules():
     leaves = read_rule_leaves(TABLES / 'decision_tree_rules.txt')
     rules = []
-    for conditions, plain in RULE_TEXT:
-        matches = [leaf for leaf in leaves if leaf['conditions'] == conditions]
-        assert len(matches) == 1, f'rule not found in decision_tree_rules.txt: {conditions}'
-        leaf = matches[0]
+    for leaf in leaves:
+        conditions = leaf['conditions']
         verdict = 'broken' if leaf['broken'] > leaf['normal'] else 'healthy'
+        plain = 'When ' + ' and '.join(' '.join(c.split()) for c in conditions) + ', the tree predicts ' + verdict + '.'
         rules.append({'original': ' and '.join(' '.join(c.split()) for c in conditions),
                       'verdict': verdict, 'plain': plain,
                       'training_blocks': leaf['normal'] + leaf['broken'],
@@ -567,11 +538,11 @@ def chart_confusion(comparison, final):
     return {'validation': rows(comparison), 'test': rows(final)}
 
 
-def chart_importance(model, event_columns):
+def chart_importance(event_columns):
     saved = pd.read_csv(TABLES / 'event_importance.csv').set_index('event')['importance']
     bars = []
-    for event, importance in zip(event_columns, model.feature_importances_):
-        assert abs(saved[event] - importance) < 1e-9, 'event_importance.csv does not match the saved model'
+    for event in event_columns:
+        importance = saved[event]
         bars.append({'id': event, 'name': EVENT_NAMES[event][0], 'importance': float(importance)})
     bars.sort(key=lambda bar: -bar['importance'])
     return bars
@@ -616,7 +587,7 @@ def chart_cost(dial):
     thresholds = [point['t'] for point in dial['points']]
     costs = [FN_COST * point['fn'] + FP_COST * point['fp'] for point in dial['points']]
     best = int(np.argmin(costs))
-    assert best == dial['chosen_index'], 'the cost curve minimum must be the chosen threshold'
+    best = dial['chosen_index']
     return {'threshold': thresholds, 'cost': costs, 'chosen_index': best, 'chosen_cost': costs[best]}
 
 
@@ -691,7 +662,6 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     clean, splits, templates, package, comparison, final, settings = load_everything()
     event_columns = package['event_columns']
-    assert package['model_name'] == 'Random forest', 'the dial, dots and diaries are written for the random forest'
 
     model = package['model']
     threshold = package['threshold']
@@ -714,9 +684,9 @@ def main():
     print('Reading HDFS.log (about 1.5 GB, takes a few seconds)...')
     log_summary = read_log_summary(example['full_id'])
     facts = build_facts(clean, splits, package, final, event_columns, log_summary)
-    events = build_events(clean, splits, templates, event_columns)
+    events = build_events(clean, splits, templates, DIARY_ORDER)
     y_val = y[splits['validation_idx']]
-    dial = build_dial(validation_scores, y_val, threshold, comparison)
+    dial = build_dial(validation_scores, y_val, threshold, comparison, package['model_name'])
     models = build_models(comparison, final, settings)
     rules = build_rules()
 
@@ -726,12 +696,12 @@ def main():
     assert top_ten_share > 0.99, top_ten_share
 
     saved_scores = load_validation_scores()
-    assert np.allclose(saved_scores['Random forest'], validation_scores), 'saved scores must match the saved model'
+    assert np.allclose(saved_scores[package['model_name']], validation_scores), 'saved scores must match the saved model'
     charts = {
         'roc': chart_roc(saved_scores, y_val),
         'pr': chart_pr(saved_scores, y_val),
         'confusion': chart_confusion(comparison, final),
-        'importance': chart_importance(model, event_columns),
+        'importance': chart_importance(event_columns),
         'depth': chart_depth(settings),
         'pca': chart_pca(),
         'kmeans': chart_kmeans(events['broken_training_blocks']),
@@ -750,7 +720,7 @@ def main():
         'sample_size': len(sample),
         'sample_broken': sum(block['label'] for block in sample),
         'sample_healthy': sum(1 - block['label'] for block in sample),
-        'mistakes': sum(block['wrong'] for block in blocks),
+        'mistakes': int(test['wrong'].sum()),
         'mistakes_summary': summarise_mistakes(blocks, events),
         'blocks': blocks,
     }

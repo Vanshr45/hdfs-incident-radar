@@ -1,180 +1,159 @@
-<p align="center">
-  <img src="docs/assets/banner.png" alt="HDFS Incident Radar banner" width="100%">
-</p>
+<div align="center">
 
-<h1 align="center">HDFS Incident Radar</h1>
+# HDFS Incident Radar
 
-<p align="center">Detecting failing HDFS blocks from log event counts.</p>
+**Classifying anomalous HDFS blocks from completed log-event histories.**
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3-0F5E66?logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/scikit--learn-ML-0F5E66?logo=scikitlearn&logoColor=white" alt="scikit-learn">
-  <img src="https://img.shields.io/badge/Jupyter-Notebook-0F5E66?logo=jupyter&logoColor=white" alt="Jupyter">
-  <img src="https://img.shields.io/badge/License-MIT-0F5E66" alt="MIT License">
-  <img src="https://img.shields.io/badge/Status-complete-0F5E66" alt="Status complete">
-</p>
+![Python](https://img.shields.io/badge/Python-3-333333?logo=python&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-ML-333333?logo=scikitlearn&logoColor=white)
+![Jupyter](https://img.shields.io/badge/Jupyter-Notebooks-333333?logo=jupyter&logoColor=white)
 
-<p align="center">
-  <a href="https://hdfs-incident-radar.vercel.app"><img src="https://img.shields.io/badge/Live%20website-Vercel-0F5E66" alt="Live website"></a>
-  <!-- TODO replace with real URL --><img src="https://img.shields.io/badge/Project%20report-coming%20soon-6B7280" alt="Project report coming soon">
-  <!-- TODO replace with real URL --><img src="https://img.shields.io/badge/LinkedIn%20post-coming%20soon-6B7280" alt="LinkedIn post coming soon">
-</p>
+</div>
 
-## Table of contents
+## Project Overview
 
-- [Overview](#overview)
-- [Key results](#key-results)
-- [Screenshots](#screenshots)
-- [How it works](#how-it-works)
-- [Dataset](#dataset)
-- [Methodology](#methodology)
-- [Repository structure](#repository-structure)
-- [Getting started](#getting-started)
-- [Limitations](#limitations)
-- [Roadmap](#roadmap)
-- [Acknowledgements and citation](#acknowledgements-and-citation)
-- [Author](#author)
+Distributed file systems produce more log messages than an engineer can readily inspect. HDFS Incident Radar groups completed log histories by block and uses event counts to classify each block as normal or anomalous. The analysis explores which event patterns distinguish the two classes and compares familiar machine learning models on a heavily imbalanced benchmark.
 
-## Overview
+The project is a retrospective classification study. It does not perform real-time monitoring, predict failures before they occur, or establish the cause of an incident.
 
-Distributed systems write large volumes of logs that engineers cannot read manually during an incident. This project treats each HDFS block as one observation and uses its counts of log-event types as input features. It predicts whether a labelled block is normal or anomalous. The work compares PCA-based anomaly detection with linear, tree-based, neighbour-based, probabilistic, SVM, boosting, and neural-network models. It also selects an alarm threshold using the relative cost of missed failures and false alarms.
+## Project Objectives
 
-## Key results
-
-Final results below are taken directly from [`reports/tables/final_test_results.csv`](reports/tables/final_test_results.csv). The three models with the lowest validation cost (10 × missed anomalies + false alarms) were scored once on the 115,013-block test set, at thresholds chosen on validation data.
-
-| Model | Threshold | Precision | Recall | F1 | AUC | Log loss | Found (TP) | Missed (FN) | False alarms (FP) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Random forest | 0.135 | 0.998517 | 0.999703 | 0.999110 | 0.999995 | 0.000508 | 3,367 | 1 | 5 |
-| kNN (k = 5) | 0.205 | 0.997925 | 0.999703 | 0.998813 | 0.999838 | 0.001335 | 3,367 | 1 | 7 |
-| Decision tree (depth 12) | 0.030 | 0.997924 | 0.999109 | 0.998516 | 0.999553 | 0.001207 | 3,365 | 3 | 7 |
-
-The always-normal baseline is 97.07% accurate on the same test set and finds none of the 3,368 broken blocks. Validation results for all eleven rows (ten models and the baseline) are in [`reports/tables/model_comparison.csv`](reports/tables/model_comparison.csv), and every hyperparameter is in [`reports/tables/model_settings.csv`](reports/tables/model_settings.csv).
-
-**Live website:** [hdfs-incident-radar.vercel.app](https://hdfs-incident-radar.vercel.app) (an interactive explainer built from these results; source in [`docs/`](docs/)).
-
-<p align="center">
-  <img src="reports/figures/class_balance.png" alt="Block class balance" width="31%">
-  <img src="reports/figures/event_label_correlation.png" alt="Event correlation with anomaly label" width="31%">
-  <img src="reports/figures/test_roc_curves.png" alt="Test ROC curves" width="31%">
-</p>
-
-Class balance shows why accuracy cannot stand alone. Event-label correlation summarises useful count patterns, and the ROC curves compare validation-selected models on the untouched test set.
-
-## Screenshots
-
-The website in [`docs/`](docs/) draws every chart from the saved results (more in [`reports/website_screenshots/`](reports/website_screenshots/)).
-
-<p align="center">
-  <img src="reports/website_screenshots/desktop_top.png" alt="Masthead and the pipeline diagram following one real block from log lines to alarm" width="32%">
-  <img src="reports/website_screenshots/desktop_haystack_step2.png" alt="The haystack grid with broken blocks scattered among healthy ones" width="32%">
-  <img src="reports/website_screenshots/mobile_dial.png" alt="The alarm dial on a phone, with the score histogram and cost curve" width="22%">
-</p>
-
-## How it works
-
-```mermaid
-flowchart LR
-    A[HDFS raw logs] --> B[Event counts per block]
-    B --> C[Stratified split]
-    C --> D[PCA and supervised models]
-    D --> E[Validation threshold selection]
-    E --> F[Anomaly alert]
-    E --> G[docs/data JSON for the website]
-```
+- Prepare and explore labelled HDFS block-event data while excluding fields that reveal the answer.
+- Compare interpretable classifiers and investigate event patterns using PCA and k-means.
+- Evaluate unfamiliar event-count patterns with metrics that reflect missed anomalies and false alarms.
+- Present the analysis through a static interactive dashboard.
 
 ## Dataset
 
-The project uses Loghub HDFS_v1 from [Zenodo record 8196385](https://zenodo.org/records/8196385): 575,061 labelled blocks, including 558,223 normal and 16,838 anomalous blocks. The dataset is not included in this repository.
+The [Loghub HDFS_v1 dataset](https://zenodo.org/records/8196385) supplies the event-count matrix and block labels. Each row represents one HDFS block.
 
-On Linux, download and extract it into `datasets/`:
+| | Dataset |
+|:--|--:|
+| Total blocks | 575,061 |
+| Normal | 558,223 (97.07%) |
+| Anomalous | 16,838 (2.93%) |
+| Original event-count features | 29 (`E1`–`E29`) |
+| Final model features | 28 |
+| Target | `0` normal · `1` anomaly |
+
+Block IDs, labels and the label-revealing `Type` field are excluded from the features. `E22` is constant in the training data and is removed. Scaling is fitted on training data only where required; the original block records are retained.
+
+## Machine Learning Workflow
+
+```mermaid
+flowchart LR
+    A[Supplied event-count matrix<br/>and block labels] --> B[Join and check data]
+    B --> C[Group identical event patterns<br/>into train, validation and test]
+    C --> D[Training-data EDA<br/>correlation · PCA · k-means]
+    C --> E[Train classifiers<br/>training-only scaling where needed]
+    E --> F[Choose model and threshold<br/>on validation data]
+    F --> G[Evaluate on grouped test data]
+    G --> H[Classify completed<br/>block histories]
+```
+
+## Exploratory Data Analysis
+
+The class distribution shows why accuracy alone is insufficient. Event correlations and distributions describe the training data, while PCA and k-means give a compact view of its structure. The k-means elbow is gradual; **k = 4** is an illustrative choice for exploration.
+
+<p align="center">
+  <img src="reports/figures/class_balance.png" alt="Class distribution of normal and anomalous HDFS blocks" width="48%">
+  <img src="reports/figures/event_label_correlation.png" alt="Training event-count correlations with the anomaly label" width="48%">
+</p>
+<p align="center">
+  <img src="reports/figures/total_events_by_class.png" alt="Distribution of total event counts by class" width="48%">
+  <img src="reports/figures/pca_scatter.png" alt="Training blocks projected onto the first two principal components" width="48%">
+</p>
+<p align="center">
+  <img src="reports/figures/kmeans_elbow.png" alt="K-means elbow plot on normal training blocks" width="48%">
+  <img src="reports/figures/event_correlation_heatmap.png" alt="Correlation heatmap of training event counts" width="48%">
+</p>
+
+## Machine Learning Models
+
+| Role | Models | Purpose |
+|:--|:--|:--|
+| Primary classifiers | Logistic regression, decision tree, k-nearest neighbours, random forest | Compare linear, rule-based, similarity-based and ensemble approaches. |
+| Baseline | Always-normal classifier | Illustrate the effect of class imbalance. |
+| Exploratory | PCA and k-means | Summarise variation and describe groups in the training data. |
+| Supplementary | PCA anomaly detector, weighted logistic regression, Naive Bayes, linear SVM, AdaBoost and MLP | Provide additional comparisons. |
+
+## Model Performance
+
+**Logistic regression** was selected from the four primary classifiers using validation cost. Its grouped test results are:
+
+| Evaluation metric | Result |
+|:--|--:|
+| Accuracy | 99.9800% |
+| Precision | 99.9701% |
+| Recall | 99.3468% |
+| F1 score | 99.6575% |
+| ROC-AUC | 0.999398 |
+
+The selected model identified **3,346 of 3,368** anomalous test blocks, with **22 missed anomalies** and **1 false alarm**. The comparison below reports validation cost for all primary models; only the three selected on validation were evaluated on the grouped test set.
+
+| Primary classifier | Validation cost ↓ | Validation F1 | Grouped test F1 |
+|:--|--:|--:|--:|
+| Logistic regression | **4** | 0.9994 | 0.9966 |
+| k-nearest neighbours | 12 | 0.9982 | 0.9990 |
+| Decision tree | 18 | 0.9987 | 0.9988 |
+| Random forest | 32 | 0.9993 | — |
+
+<p align="center">
+  <img src="reports/figures/test_roc_curves.png" alt="Grouped test ROC curves for the three validation-selected primary classifiers" width="48%">
+  <img src="reports/figures/validation_precision_recall.png" alt="Validation precision-recall curves for the selected primary classifiers" width="48%">
+</p>
+
+<p align="center">
+  <img src="reports/website_screenshots/readme_confusion.png" alt="Grouped test confusion matrices for logistic regression, k-nearest neighbours and decision tree" width="78%">
+</p>
+
+Full metrics and confusion counts: [validation comparison](reports/tables/model_comparison.csv) · [grouped test results](reports/tables/final_test_results.csv).
+
+## Evaluation Methodology
+
+Identical event-count vectors are assigned to the same partition, with **zero shared feature patterns** between training, validation and test. Training-only preprocessing is followed by model and threshold selection on validation data. The cost `10 × false negatives + false positives` is a project assumption, not a measured operational cost.
+
+A [conventional stratified row split](reports/tables/stratified_final_test_results.csv) is retained as a historical comparison; it measures new blocks from the same distribution, whereas the grouped split tests unseen count patterns. The grouped test results have already been inspected and the test was evaluated twice during development. The recorded model choices and thresholds were based on the project requirements and validation results. Results apply to this benchmark and do not establish performance on other systems.
+
+## Interactive Dashboard
+
+The existing [dashboard source](docs/index.html) presents the saved analysis with an interactive threshold, model comparisons and exploratory charts. It displays precomputed results rather than making live predictions.
+
+<p align="center">
+  <img src="reports/website_screenshots/readme_overview.png" alt="Dashboard overview showing the HDFS block classification study" width="49%">
+  <img src="reports/website_screenshots/readme_models.png" alt="Dashboard model comparison section" width="49%">
+</p>
+<p align="center">
+  <img src="reports/website_screenshots/readme_threshold.png" alt="Interactive validation threshold analysis" width="49%">
+  <img src="reports/website_screenshots/readme_clusters.png" alt="Dashboard k-means exploratory visualizations" width="49%">
+</p>
+
+## Technology Stack
+
+Python · pandas · NumPy · scikit-learn · Matplotlib · Jupyter · HTML, CSS and JavaScript
+
+## Academic Context
+
+| | |
+|:--|:--|
+| Course | INT234 — Predictive Analytics |
+| Programme | B.Tech Computer Science and Engineering |
+| Academic level | Third Year |
+| Domain | Data Science and Machine Learning |
+| Application | Distributed Systems Anomaly Classification |
+
+The [original proposal](HDFS_Incident_Radar.pdf) and the existing project report PDF are historical and contain outdated descriptions or results. The notebooks and tables contain the current analysis.
+
+## Run Locally
+
+To view the precomputed dashboard, run from the repository root:
 
 ```bash
-mkdir -p datasets
-curl -L "https://zenodo.org/records/8196385/files/HDFS_v1.zip?download=1" -o datasets/HDFS_v1.zip
-unzip datasets/HDFS_v1.zip -d datasets/hdfs_v1
+cd docs && python3 -m http.server 8000
 ```
 
-The notebooks expect preprocessed files under `datasets/hdfs_v1/preprocessed/`, including `anomaly_label.csv`, `Event_occurrence_matrix.csv`, and `HDFS.log_templates.csv`.
-
-## Methodology
-
-<details>
-<summary>Preprocessing and validation</summary>
-
-Only `E1` to `E29` event-count fields are used as model features. Block identifiers, labels, and non-event fields are excluded. A single stratified 80/20 train/test split uses `random_state=42`; the training portion is split again into training and validation sets. The test set is used only for final reporting.
-
-</details>
-
-<details>
-<summary>Models, metrics, and threshold</summary>
-
-The comparison includes an always-normal baseline, a PCA reconstruction-error detector (fitted on normal training blocks only), logistic regression with and without balanced class weights, a decision tree (depth chosen by a bias-variance sweep), kNN (k chosen from 5, 15 and 25), Gaussian Naive Bayes, linear SVM, random forest, AdaBoost, and a small MLP. Metrics are accuracy, precision, recall, F1, AUC, log loss, and confusion-matrix counts. A false negative is assigned a cost 10 times that of a false positive. On validation data, every distinct score of each model (plus a 201-point grid) is tried as a threshold, and a block raises the alarm when its score is at or above the threshold; the same rule is used for evaluation. Notebook 03 ends with leakage checks.
-
-</details>
-
-## Repository structure
-
-```text
-.
-├── docs/                 Website (index.html, css/, js/, data/), preview.html, notes, assets
-├── notebooks/            01 cleaning and split, 02 EDA, 03 models and evaluation
-├── reports/
-│   ├── figures/          Saved charts used in analysis and reporting
-│   └── tables/           Validation, test, settings and EDA tables
-├── src/
-│   ├── export_web_data.py   Writes docs/data/*.json from the saved results
-│   ├── build_preview.py     Writes docs/preview.html (single file, opens offline)
-│   └── make_social_image.py Draws docs/assets/social_preview.png from the haystack grid
-├── LICENSE               MIT licence
-├── CITATION.cff          Citation metadata
-└── requirements.txt      Python dependencies (pinned)
-```
-
-## Getting started
-
-```bash
-git clone https://github.com/Vanshr45/hdfs-incident-radar.git
-cd hdfs-incident-radar
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-```
-
-Download the dataset as described above, then run the notebooks in order: `01_cleaning_and_visualization.ipynb` (creates `datasets/processed/hdfs_clean.csv` and `splits.npz`), `02_eda_and_statistical_analysis.ipynb`, and `03_model_development_and_evaluation.ipynb` (trains every model and saves the tables, figures and `models/best_final_model.pkl`). All split-dependent work uses `random_state=42`.
-
-```bash
-for nb in notebooks/0*.ipynb; do jupyter nbconvert --to notebook --execute --inplace "$nb"; done
-```
-
-### Rebuilding the website data
-
-The website never trains anything; it only shows saved results. After the notebooks have run:
-
-```bash
-python src/export_web_data.py   # writes docs/data/*.json (incl. charts.json) and docs/assets/figures/, printing every number
-python src/build_preview.py     # writes docs/preview.html, a single file that opens by double-click
-python src/make_social_image.py  # redraws docs/assets/social_preview.png (1200 x 630) from facts.json
-```
-
-To view the site locally:
-
-```bash
-cd docs && python -m http.server 8000   # then open http://localhost:8000
-```
-
-## Limitations
-
-This is one labelled benchmark dataset from one distributed system, and the labels came from hand-written rules, so the models learned to agree with those rules. Event counts ignore the order of events. A threshold chosen with the assumed 10:1 missed-failure cost may not match another operational setting. Event counts describe patterns associated with known labels; they do not identify the root cause of an incident.
-
-## Roadmap
-
-The static website in [`docs/`](docs/) is deployed on Vercel at [hdfs-incident-radar.vercel.app](https://hdfs-incident-radar.vercel.app), with `docs/` as the project root and no build step. Possible next steps are adding event order (sequence features) and testing on a second log dataset.
-
-## Acknowledgements and citation
-
-The HDFS_v1 dataset is provided by [Loghub](https://github.com/logpai/loghub). This project also acknowledges the original HDFS log-analysis work by Xu et al. See [`CITATION.cff`](CITATION.cff) for repository citation metadata.
+Open `http://localhost:8000`, or open `docs/preview.html` directly for the offline version.
 
 ## Author
 
-Vansh Rana · [GitHub](https://github.com/Vanshr45)
+**Vansh**

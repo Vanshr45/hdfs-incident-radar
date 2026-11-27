@@ -93,7 +93,7 @@
       });
       arrow(root, 14, 316, 342);
 
-      stageLabel(root, 364, '3', 'Random forest suspicion score');
+      stageLabel(root, 364, '3', data.facts.best_model_display + ' suspicion score');
       var track = C.linear(0, 1, 0, width - 4);
       C.svg('line', { x1: 0, x2: width - 4, y1: 392, y2: 392, stroke: colours.rule, 'stroke-width': 6 }, root);
       C.svg('line', { x1: track(threshold), x2: track(threshold), y1: 382, y2: 402, stroke: colours.ink }, root);
@@ -113,7 +113,7 @@
     C.setTitle('chart-pipeline', 'One real block, from log lines to alarm',
       'Block ' + example.block_id + ' has ' + example.line_count + ' log lines. Counted per event type it becomes ' +
       Object.keys(example.counts).map(function (id) { return id + ' ' + example.counts[id]; }).join(', ') +
-      '. The random forest scores it ' + f.score(example.score) + ', above the cut-off of ' + f.score(threshold) +
+      '. The selected classifier scores it ' + f.score(example.score) + ', above the cut-off of ' + f.score(threshold) +
       ', so the alarm rings. Its label is ' + (example.label === 1 ? 'broken' : 'healthy') + '.');
   });
 })();

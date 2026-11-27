@@ -6,13 +6,14 @@
 (function () {
   'use strict';
 
-  var HIGHLIGHT = 'Random forest';
+  var HIGHLIGHT = 'Logistic regression';
   var CELL = 72;       // one square of a matrix
   var NAME = 40;       // two lines of model name above each matrix
   var PANEL_GAP = 18;
   var SIDE = 26;       // room on the left for the "truth" labels
 
   Radar.register('confusion', function (data) {
+    HIGHLIGHT = data.facts.best_model;
     var C = Radar.chart;
     var f = Radar.format;
     var sets = data.charts.confusion;

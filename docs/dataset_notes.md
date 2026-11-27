@@ -4,7 +4,7 @@
 - About 11.2 million log messages
 - 575,061 labelled blocks
 - 558,223 normal and 16,838 anomalous
-- Files expected: anomaly_label.csv, Event_traces.csv, Event_occurrence_matrix.csv, HDFS_templates.csv, HDFS.npz
+- Files used: anomaly_label.csv, Event_occurrence_matrix.csv, HDFS.log_templates.csv; HDFS.log is used for the website example.
 
 # Observed in my download
 

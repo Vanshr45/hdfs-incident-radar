@@ -16,7 +16,7 @@
   <meta name="theme-color" content="#f4f3ef" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#161614" media="(prefers-color-scheme: dark)">
   <meta property="og:title" content="HDFS Incident Radar: finding broken blocks in a storage log">
-  <meta property="og:description" content="How I taught a model to read the log diaries of Hadoop storage blocks, and the six blocks it still gets wrong.">
+  <meta property="og:description" content="Classifying completed HDFS block histories using event counts.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://hdfs-incident-radar.vercel.app/">
   <meta property="og:image" content="https://hdfs-incident-radar.vercel.app/assets/social_preview.png">
@@ -85,14 +85,14 @@
     </div>
     <h1 id="headline"><span data-fact="anomalous_blocks"></span> of <span data-fact="total_blocks"></span> storage blocks went wrong. Could a computer find them?</h1>
     <p class="standfirst">In <span data-fact="log_year"></span>, a Hadoop cluster of <span data-fact="machines"></span> machines wrote <span data-fact="log_lines"></span> log lines in <span data-fact="log_hours" data-format="decimal1"></span> hours. Every file it stored was cut into blocks, and every block left a trail of lines about what happened to it. I treated each trail as a diary, counted what was in it, and trained models to tell healthy diaries from broken ones. This page is what I found&#8202;—&#8202;including the <span data-fact="mistakes" data-format="word"></span> blocks my best model still gets wrong.</p>
-    <p class="byline">By Vansh Rana · every number on this page is read from files my notebooks saved</p>
+    <p class="byline">By Vansh · every number on this page is read from files my notebooks saved</p>
     <noscript><p class="load-error">The charts and numbers on this page are drawn by JavaScript from small data files. Please turn JavaScript on to see them.</p></noscript>
     <p class="load-error" id="load-error" hidden></p>
 
     <figure class="chart pipeline" id="chart-pipeline">
       <figcaption>
         <p class="chart-title">One real block, from log lines to alarm</p>
-        <p class="chart-how">The test block <span data-chart-fact="pipeline_id"></span>, exactly as it appears in HDFS.log. Its lines are grouped by block id, counted per event type, scored by the random forest and compared with my cut-off.</p>
+        <p class="chart-how">The completed test block <span data-chart-fact="pipeline_id"></span>, exactly as it appears in HDFS.log. Its event counts are scored by the selected classifier and compared with its cut-off.</p>
       </figcaption>
       <div class="chart-body" style="--h: 560px"></div>
       <p class="sr-only chart-alt"></p>
@@ -137,7 +137,7 @@
         <p class="pull-caption">blocks in the log were labelled broken. Rare enough to miss by eye, common enough that missing them matters.</p>
       </div>
 
-      <p>Before training anything I checked which steps move with the label at all. Plain correlation on the training blocks already shows the shape of the problem: broken blocks are mostly missing things, not doing strange things.</p>
+      <p>Before training I checked how event counts correlate with the training labels. Correlation shows association, not a cause.</p>
       <aside class="margin-note">Correlation only sees straight-line links between one count and the label. A model can combine steps, so a weak correlation here does not make an event useless.</aside>
       <figure class="chart" id="chart-correlation">
         <figcaption>
@@ -240,7 +240,7 @@
             <tr><th scope="row">Broken blocks found</th><td class="num">0 of <span data-fact="test_anomalies"></span></td><td class="num"><span data-fact="best_test_found"></span> of <span data-fact="test_anomalies"></span></td></tr>
           </tbody>
         </table>
-        <p>Two accuracy figures under three points apart, and one of them found nothing. That is why I never judged a model on accuracy: I looked at how many broken blocks it found and how many of its alarms were real.</p>
+        <p>The always-normal baseline finds no anomalies. Recall and precision show how many anomalies are found and how many alarms are correct.</p>
       </div>
     </div>
   </section>
@@ -250,7 +250,7 @@
     <div class="wrap">
       <p class="section-no">05</p>
       <h2 id="dial-title">Where I set the alarm</h2>
-      <p>My random forest gives each block a score between 0 and 1. The score is not the decision; a cut-off is. Drag it and watch the <span data-fact="validation_blocks"></span> validation blocks I used to choose mine.</p>
+      <p>The selected <span data-fact="best_model_display"></span> gives each block a score between 0 and 1. Drag the cut-off and watch the <span data-fact="validation_blocks"></span> validation blocks used to choose it.</p>
       <aside class="margin-note">Why ten false alarms for one miss? It is my assumption, not a measurement: a missed failure can lose data, a false alarm costs someone a few minutes. A different ratio would move every cut-off on this page.</aside>
 
       <div class="dial">
@@ -301,7 +301,7 @@
       </div>
 
       <h3>The final exam</h3>
-      <p>With the cut-off fixed, I ran the random forest once on the <span data-fact="test_blocks"></span> test blocks it had never seen. It found <span data-fact="best_test_found" class="broken-text"></span> of the <span data-fact="test_anomalies"></span> broken ones and missed <span data-fact="best_test_missed"></span>. Of every 100 alarms, <span data-fact="best_test_precision" data-format="per100"></span> were real.</p>
+      <p>With the cut-off fixed on validation, the selected classifier found <span data-fact="best_test_found" class="broken-text"></span> of <span data-fact="test_anomalies"></span> anomalous test blocks and missed <span data-fact="best_test_missed"></span>. Of every 100 alarms, <span data-fact="best_test_precision" data-format="per100"></span> were real.</p>
       <div class="pull-stat">
         <p class="pull-number"><span data-fact="best_test_false_alarms" data-countup></span><span class="unit"> false alarms</span></p>
         <p class="pull-caption">in <span data-fact="test_blocks"></span> test blocks, plus <span data-fact="best_test_missed"></span> missed. Out of <span data-fact="test_normal"></span> healthy blocks, the alarm rang for <span data-fact="best_test_false_alarms"></span>.</p>
@@ -314,7 +314,7 @@
     <div class="wrap">
       <p class="section-no">06</p>
       <h2 id="models-title"><span data-fact="model_count_word"></span> models, one rule</h2>
-      <p>Each model learned from the same <span data-fact="train_blocks"></span> training blocks and picked its own cut-off with the same cost rule. Sort by any column. The shaded row is the one I kept.</p>
+      <p>Supervised models use the same <span data-fact="train_blocks"></span> training blocks; the optional PCA detector learns from normal training blocks only. Cut-offs use the same validation cost rule. The shaded row is the selected primary classifier.</p>
       <div class="table-wrap wide">
         <table class="dense" id="model-table">
           <caption>Validation results, <span data-fact="validation_blocks"></span> blocks (<span data-fact="validation_anomalies"></span> broken)</caption>
@@ -327,7 +327,7 @@
         <figure class="chart" id="chart-roc">
           <figcaption>
             <p class="chart-title"></p>
-            <p class="chart-how">How to read this: higher and further left is better. The view is zoomed into the top-left corner because every curve lives there.</p>
+            <p class="chart-how">How to read this: higher and further left is better.</p>
           </figcaption>
           <div class="chart-body" style="--h: 340px"></div>
           <p class="sr-only chart-alt"></p>
@@ -336,7 +336,7 @@
         <figure class="chart" id="chart-pr">
           <figcaption>
             <p class="chart-title"></p>
-            <p class="chart-how">How to read this: precision (real alarms) against recall (broken blocks found), zoomed to recall above 99%. Dots mark each model’s chosen cut-off.</p>
+            <p class="chart-how">How to read this: precision (real alarms) against recall (broken blocks found). Dots mark each model’s chosen cut-off.</p>
           </figcaption>
           <div class="chart-body" style="--h: 340px"></div>
           <p class="sr-only chart-alt"></p>
@@ -358,7 +358,7 @@
         <p class="sr-only chart-live" aria-live="polite"></p>
       </figure>
 
-      <p>Only the three cheapest models on validation were run on the test set, once each, with the cut-off they had already chosen. I did not look at test results before that.</p>
+      <p>The three cheapest primary classifiers on validation are evaluated on the test set using their validation-selected cut-offs. Other models are supplementary.</p>
       <div class="table-wrap">
         <table id="test-table">
           <caption>The three tested on blocks they had never seen</caption>
@@ -374,7 +374,7 @@
       <figure class="chart" id="chart-depth">
         <figcaption>
           <p class="chart-title"></p>
-          <p class="chart-how">How to read this: F1 at the default 0.5 cut for trees of each depth. Depths below 5 score under 0.98 and sit below this zoomed view.</p>
+          <p class="chart-how">How to read this: F1 at the default 0.5 cut for trees of each depth.</p>
         </figcaption>
         <div class="chart-body" style="--h: 300px"></div>
         <p class="sr-only chart-alt"></p>
@@ -388,7 +388,7 @@
     <div class="wrap">
       <p class="section-no">07</p>
       <h2 id="mistakes-title">The <span data-fact="mistakes" data-format="word"></span> it got wrong</h2>
-      <p>Out of <span data-fact="test_blocks"></span> test blocks, these are the only ones where the random forest and the labels disagree. I show only the steps that differ from a typical healthy block.</p>
+      <p>Out of <span data-fact="test_blocks"></span> test blocks, the examples below include cases where the selected classifier and labels disagree. Only a sample of errors is displayed.</p>
       <p id="mistakes-summary"></p>
       <ol class="mistake-list" id="mistake-list"></ol>
     </div>
@@ -428,7 +428,7 @@
     <div class="wrap">
       <p class="section-no">09</p>
       <h2 id="clusters-title">Do broken blocks cluster?</h2>
-      <p>Not much. I fitted k-means on <span data-fact="kmeans_fit_blocks"></span> normal training blocks, then dropped every training block into its nearest cluster. One small cluster is mostly broken, but most broken blocks land in clusters that look normal. Clustering helped me describe the data; it would make a poor detector.</p>
+      <p>I fitted k-means on <span data-fact="kmeans_fit_blocks"></span> normal training blocks and assigned training blocks to their nearest cluster. The elbow is gradual; k=4 is an illustrative choice. Clusters describe the training data and are not the classifier.</p>
       <div class="pair wide">
         <figure class="chart" id="chart-elbow">
           <figcaption>
@@ -457,7 +457,7 @@
     <div class="wrap">
       <p class="section-no">10</p>
       <h2 id="rules-title">What a small tree wrote down</h2>
-      <p>The forest is far too big to read. So I trained a separate tree only <span data-fact="rule_tree_depth"></span> questions deep, on the same blocks, purely to explain the main splits. It never scores anything on this page. Its rules, in my words and as scikit-learn printed them:</p>
+      <p>A separate tree only <span data-fact="rule_tree_depth"></span> questions deep describes patterns in the training blocks. It does not explain individual predictions from the selected classifier.</p>
       <ol class="rule-list" id="rule-list"></ol>
       <p class="note" id="rule-legend"></p>
     </div>
@@ -487,8 +487,9 @@
         <li><strong>It counts steps and ignores their order.</strong> A block whose steps arrived in a strange order, but in normal numbers, looks healthy to every model here.</li>
         <li><strong>It is one cluster in <span data-fact="log_year"></span>.</strong> <span data-fact="machines"></span> machines, <span data-fact="log_hours" data-format="decimal1"></span> hours, one Hadoop version, benchmark jobs. I have no evidence the cut-off would carry over to anything else.</li>
         <li><strong>The labels came from rules, not from failures someone confirmed.</strong> My models learned to agree with those rules.</li>
-        <li><strong>Patterns, not causes.</strong> “Tried to delete a block that was not there” is the forest’s favourite clue, but it is probably a symptom of an earlier failure, not the failure itself.</li>
-        <li><strong>The near-perfect scores are partly the data.</strong> Only <span data-fact="distinct_patterns_train"></span> different diaries appear in <span data-fact="train_blocks"></span> training blocks, so a model that memorises patterns does very well. Published studies report similarly high scores on this dataset.</li>
+        <li><strong>Patterns, not causes.</strong> Event counts describe associations and do not establish why a block failed.</li>
+        <li><strong>Completed histories.</strong> This is retrospective classification, not an early-warning or real-time system. The grouped test assesses unseen count patterns from the same benchmark, not a different system.</li>
+        <li><strong>Test reuse.</strong> The grouped test was evaluated twice during the update. The later restriction to four primary classifiers followed the original project request; the recorded workflow shows model settings, feature selection and thresholds were not adjusted from test results. Future tuning should not use these inspected results.</li>
       </ul>
     </div>
   </section>
@@ -498,8 +499,8 @@
     <div class="wrap">
       <p class="section-no">13</p>
       <h2 id="method-title">How I did it</h2>
-      <p><span class="label">Data.</span> Loghub HDFS_v1, Zenodo record <span data-fact="zenodo_record" data-format="text"></span>: <span data-fact="log_lines"></span> log lines grouped into <span data-fact="total_blocks"></span> blocks. Only the <span data-fact="event_types"></span> event-count columns go into the models. I dropped the block id and the matrix’s own Label and Type columns, because Type is only filled in for failed blocks and would hand the answer over.</p>
-      <p><span class="label">Split.</span> One stratified split set aside <span data-fact="test_fraction" data-format="pct0"></span> of blocks for testing (<span data-fact="test_blocks"></span>). The rest became training (<span data-fact="train_blocks"></span>) and validation (<span data-fact="validation_blocks"></span>). Seed <span data-fact="random_state" data-format="text"></span> everywhere. Notebook 03 ends with checks that no scaler, PCA or model ever saw a validation or test row.</p>
+      <p><span class="label">Data.</span> Loghub HDFS_v1, Zenodo record <span data-fact="zenodo_record" data-format="text"></span>: <span data-fact="log_lines"></span> log lines grouped into <span data-fact="total_blocks"></span> blocks. Models use <span data-fact="model_features"></span> event counts; E22 is constant in training. Block ID, matrix Label and Type are excluded.</p>
+      <p><span class="label">Split.</span> Identical event-count patterns are kept together, yielding <span data-fact="train_blocks"></span> training, <span data-fact="validation_blocks"></span> validation and <span data-fact="test_blocks"></span> test blocks. Groups are allocated to approximately balance class counts. The original stratified row split is retained as a separate benchmark.</p>
       <p><span class="label">Course topics.</span> Preprocessing, correlation, logistic regression, k-nearest neighbours, Naive Bayes, decision trees and rules, linear SVM, k-means, PCA, a small neural network, bias-variance, bagging (random forest), boosting (AdaBoost), and accuracy, precision, recall, F1, AUC, log loss and confusion matrices.</p>
       <p><span class="label">Cut-offs.</span> <span data-fact="cost_rule"></span> Every model’s cut-off is the one with the lowest validation cost; a block raises the alarm when its score is at or above it.</p>
       <p>Code, notebooks and data pipeline: <a href="https://github.com/Vanshr45/hdfs-incident-radar">github.com/Vanshr45/hdfs-incident-radar</a></p>
@@ -509,7 +510,7 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <p>Made by Vansh Rana for the CA2 skill-based assessment.</p>
+    <p>Made by Vansh for the CA2 skill-based assessment.</p>
     <p class="note">Every chart and number here is drawn from small JSON files that <code>src/export_web_data.py</code> exports from the saved notebook results. Nothing is trained or simulated in the browser.</p>
   </div>
 </footer>

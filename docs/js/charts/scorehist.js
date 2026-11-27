@@ -82,7 +82,7 @@
     var extremes = scores.healthy[0] + scores.broken[0] + scores.healthy[bins - 1] + scores.broken[bins - 1];
     C.setTitle('chart-scores',
       f.percent(extremes / total, 1) + ' of validation blocks score under ' + scores.edges[1] + ' or from ' +
-        scores.edges[bins - 1] + ' up: the forest is rarely unsure',
+        scores.edges[bins - 1] + ' up for the selected classifier',
       'Histogram of ' + f.int(total) + ' validation scores in ' + bins + ' bins. ' + f.int(scores.healthy[0]) +
         ' healthy and ' + f.int(scores.broken[0]) + ' broken blocks are in the lowest bin; ' + f.int(scores.broken[bins - 1]) +
         ' broken and ' + f.int(scores.healthy[bins - 1]) + ' healthy are in the highest.');
